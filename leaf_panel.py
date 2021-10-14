@@ -10,16 +10,6 @@ bl_info = {
 }
 
 import bpy
-from math import atan2, pi
-from mathutils import Quaternion
-from math import radians, degrees, atan2, sqrt
-from random import random as random_random
-import mathutils
-from mathutils import Quaternion
-import os
-from copy import deepcopy
-import queue
-import time
 from mathutils import Vector
 import logging
 
