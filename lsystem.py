@@ -101,9 +101,9 @@ def gen_leaf(leaf_type, scale, location, direction, bend_angle):
     shape = leaf_shape(leaf_type)
     verts = shape[0]
     faces = shape[1]
-    for vert in verts:
-        vert.x *= scale
-        vert.y *= scale
+    
+    verts = [vert.zxy * scale for vert in verts]
+    
     mesh.from_pydata(verts, [], faces) 
     
     obj = bpy.data.objects.new("Leaf", mesh)
@@ -116,19 +116,24 @@ def gen_leaf(leaf_type, scale, location, direction, bend_angle):
     modifier.deform_axis = 'X'
     modifier.angle = bend_angle
     
-    obj.location = location
+    obj.location = location + bpy.context.scene.cursor.location
     obj.rotation_euler = direction
     
 
 class Turtle:
-    def __init__(self, tropism=None, tropism_scale=0):
+    def __init__(self, tropism=None, tropism_scale=0, **params):
+        # pushed to stack
         self.pos = Vector([0, 0, 0])
-        self.h = Vector([0, 0, 1]) # heading, starts directly up
-        self.l = Vector([-1, 0, 0]) # direction left, towards negative x
-        self.u = Vector([0, -1, 0]) # direction up, towards negative y
+        self.h = Vector([0, 0, 1]) # heading
+        self.l = Vector([1, 0, 0]) # direction left
+        self.u = Vector([0, 1, 0]) # direction up
         self.thickness = 0.05
+        
+        # not pushed to stack because they never change
         self.tropism = tropism
+        self.params = params
         self.tropism_scale = tropism_scale
+        
         self.stack = []
     
     def rotate_h(self, deg):
@@ -172,6 +177,15 @@ class Turtle:
                 self.h.rotate(mat)
                 self.l.rotate(mat)
                 self.u.rotate(mat)
+    
+    def draw_leaf(self):
+        
+        mat = Matrix([self.h, self.l, self.u])
+        mat.transpose()
+        euler = mat.to_euler('XYZ')
+        
+        gen_leaf(self.params['leaf_type'], self.params['leaf_scale'], self.pos, euler, self.params['leaf_bend'])
+        
         
     def push_state(self):
         state = [
@@ -193,8 +207,9 @@ class Turtle:
         ] = self.stack.pop()
 
 
-def draw_lstring(lstring, tropism=None, tropism_scale=0):
-    turtle = Turtle(tropism=tropism, tropism_scale=tropism_scale)
+def draw_lstring(lstring, **params):
+    
+    turtle = Turtle(**params)
     for lnode in lstring:
         l, params = lnode.l, lnode.params
         if l == 'F':
@@ -221,22 +236,28 @@ def draw_lstring(lstring, tropism=None, tropism_scale=0):
             turtle.rotate_h(360*random.random())
         elif l == '!':
             turtle.thickness = params[0]
+        elif l == 'L':
+            turtle.draw_leaf()
     
     
 
 def execute(context):
     # todo: make these inputs
-#    params = {
-#        'n_iter' : 5, # number of iterations
-#        'length' : 0.5, # scales lengths of all branches
-#        'length_scale' : 1.1, # scales lengths of lower-order branches relative to higher-order ones
-#        'thickness' : 0.01, # scales thicknesses of all branches
-#        # thickness_scale is not paramaterized since it depends on branching rules
-#        'branch_angle' : 19, # branching angle, in degrees
-#        'tropism' : Vector([0, 0, -1]), # direction to bend branches towards
-#        'tropism_scale' : 0.22, # strength of bending force
-#        'seed' : 3 # random seed
-#    }
+    params = {
+        'n_iter' : 4, # number of iterations
+        'length' : 0.5, # scales lengths of all branches
+        'length_scale' : 1.1, # scales lengths of lower-order branches relative to higher-order ones
+        'thickness' : 0.01, # scales thicknesses of all branches
+        # thickness_scale is not paramaterized since it depends on branching rules
+        'branch_angle' : 19, # branching angle, in degrees
+        'leaf_angle' : 41, # Angle between leaf and branch
+        'leaf_scale' : 0.8, # Scaling factor for leaf
+        'leaf_bend' : 0, # Bend angle for leaf
+        'leaf_type': 3, # leaf type
+        'tropism' : Vector([0, 0, -1]), # direction to bend branches towards
+        'tropism_scale' : 0.22, # strength of bending force
+        'seed' : 6 # random seed
+    }
 
 #    params = {
 #        'n_iter' : 5, # number of iterations
@@ -250,17 +271,17 @@ def execute(context):
 #        'seed' : 3 # random seed
 #    }
 
-    params = {
-        'n_iter' : 4,
-        'length' : 0.5, # scales lengths of all branches
-        'length_scale' : 1.05, # scales lengths of lower-order branches relative to higher-order ones
-        'thickness' : 0.01, # scales thicknesses of all branches
-        # thickness_scale is not paramaterized since it depends on branching rules
-        'branch_angle' : 40, # branching angle, in degrees
-        'tropism' : Vector([-.4, 0, -1]), # direction to bend branches towards
-        'tropism_scale' : 0.39, # strength of bending force
-        'seed' : 30 # random seed
-    }
+#    params = {
+#        'n_iter' : 3,
+#        'length' : 0.5, # scales lengths of all branches
+#        'length_scale' : 1.05, # scales lengths of lower-order branches relative to higher-order ones
+#        'thickness' : 0.01, # scales thicknesses of all branches
+#        # thickness_scale is not paramaterized since it depends on branching rules
+#        'branch_angle' : 40, # branching angle, in degrees
+#        'tropism' : Vector([-.4, 0, -1]), # direction to bend branches towards
+#        'tropism_scale' : 0.3, # strength of bending force
+#        'seed' : 30 # random seed
+#    }
 
     axiom = parse_lstring("!({thickness})F({length2})A".format(**params, length2=params['length']*2))
     
@@ -278,12 +299,20 @@ def execute(context):
 #    }
     
     lstring = generate_lstring(axiom, rules, params['n_iter'])
-    # bprint(lstring_to_str(lstring))
-    random.seed(params['seed'])
-    draw_lstring(lstring, tropism=params['tropism'], tropism_scale=params['tropism_scale'])
     
-    # gen_leaf(leaf_type, scale, location, direction, bend_angle)
-    gen_leaf(3, 1.0, (1, 0.5, 0), (0.5, 1.0, -0.4), 1.0)
+    
+    # second pass--add leaves
+    leaf_rules = {
+        "A" : parse_lstring("?[&({leaf_angle})L]/(120)[&({leaf_angle})L]/(120)[&({leaf_angle})L]".format(**params))
+    }
+    lstring = generate_lstring(lstring, leaf_rules, 1)
+    
+    
+    random.seed(params['seed'])
+    draw_lstring(lstring, **params)
+    
+    # gen_leaf(leaf_type, scale, location, euler, bend_angle)
+    # gen_leaf(3, 0.3, (0,0,0), (0,0,0), 0)
 
     
     return {'FINISHED'}
