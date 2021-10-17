@@ -118,6 +118,11 @@ class Turtle:
         mat = Matrix.Rotation(deg/180*pi, 4, self.u)
         self.h.rotate(mat)
         self.l.rotate(mat)
+    
+    def rotate_horiziontal(self):
+        self.l = self.v.cross(h)
+        self.l.normalize()
+        self.u = self.h.cross(self.l)
         
     def draw(self, dist):
         end = self.pos + dist * self.h
@@ -166,6 +171,8 @@ def draw_lstring(lstring):
             turtle.rotate_l(params[0])
         elif l == '^':
             turtle.rotate_l(-params[0])
+        elif l == '$':
+            turtle.rotate_horizontal()
         elif l == '!':
             turtle.thickness = params[0]
     
@@ -174,12 +181,12 @@ def draw_lstring(lstring):
 def execute(context):
     axiom = parse_lstring("!(.01)F(1)/(45)A")
     rules = {
-        "A" : parse_lstring("!(.01732)F(.5)[&(19)F(.50)A]/(94)[&(19)F(.50)A]/(132.63)[&(19)F(.50)A]"),
+        "A" : parse_lstring("!(.01732)/(45)F(.5)[&(19)F(.50)A]/(94)[&(19)F(.50)A]/(132.63)[&(19)F(.50)A]"),
         "F" : [lambda F: LNode("F", F.params[0] * 1.1)],
         "!" : [lambda n: LNode("!", n.params[0] * 1.7)]
     }
     
-    lstring = generate_lstring(axiom, rules, 5)
+    lstring = generate_lstring(axiom, rules, 2)
     # bprint(lstring_to_str(lstring))
     draw_lstring(lstring)
 
