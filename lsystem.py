@@ -8,7 +8,7 @@ The Algorithmic Beauty of Plants, ch 1-2
 
 import bpy
 from mathutils import Vector, Matrix
-import math
+from math import *
 
 # from https://blender.stackexchange.com/questions/6173/where-does-console-output-go
 def bprint(*data):
@@ -63,11 +63,8 @@ def parse_lstring(s):
 def lstring_to_str(lstring):
     return ''.join(str(lnode) for lnode in lstring)
 
-def apply_rules(lstring, rules, n_iter):
-    rule = parse_lstring("F[&FA]/(94.74)[&FA]/(132.62)[&FA]")
-    
-    ans = lstring
-    
+def generate_lstring(axiom, rules, n_iter):
+    lstring = axiom    
     for i in range(n_iter):
         ans = []
         for node in lstring:
@@ -77,12 +74,11 @@ def apply_rules(lstring, rules, n_iter):
                 ans.append(node)
         lstring = ans
 
-    return ans
+    return lstring
 
 
 # from https://blender.stackexchange.com/questions/5898/how-can-i-create-a-cylinder-linking-two-points-with-python
 def draw_cylinder_between(p1, p2, radius):
-    bprint(p1, p2, radius)
     bpy.ops.curve.primitive_bezier_curve_add()
     obj = bpy.context.object
     obj.data.dimensions = '3D'
@@ -90,19 +86,22 @@ def draw_cylinder_between(p1, p2, radius):
     obj.data.bevel_depth = radius
     obj.data.bevel_resolution = 4
 
-    obj.data.splines[0].bezier_points[0].co = p1.xyz
+    obj.data.splines[0].bezier_points[0].co = p1
     obj.data.splines[0].bezier_points[0].handle_left_type = 'VECTOR'
+    obj.data.splines[0].bezier_points[0].handle_right_type = 'VECTOR'
 
-    obj.data.splines[0].bezier_points[1].co = p2.xyz
+    obj.data.splines[0].bezier_points[1].co = p2
     obj.data.splines[0].bezier_points[1].handle_left_type = 'VECTOR'
+    obj.data.splines[0].bezier_points[1].handle_right_type = 'VECTOR'
     
 
 class Turtle:
     def __init__(self):
         self.pos = Vector([0, 0, 0])
-        self.h = Vector([0, 0, 1]) # heading
-        self.l = Vector([-1, 0, 0]) # direction left
-        self.u = Vector([0, -1, 0]) # direction up
+        self.h = Vector([0, 0, 1]) # heading, starts directly up
+        self.l = Vector([-1, 0, 0]) # direction left, towards negative x
+        self.u = Vector([0, -1, 0]) # direction up, towards negative y
+        self.thickness = 0.05
         self.stack = []
     
     def rotate_h(self, deg):
@@ -122,15 +121,27 @@ class Turtle:
         
     def draw(self, dist):
         end = self.pos + dist * self.h
-        draw_cylinder_between(self.pos, end, 0.1)
+        draw_cylinder_between(self.pos, end, self.thickness)
         self.pos = end
         
     def push_state(self):
-        state = [self.pos, self.h, self.l, self.u]
+        state = [
+            self.pos.copy(),
+            self.h.copy(),
+            self.l.copy(),
+            self.u.copy(),
+            self.thickness
+        ]
         self.stack.append(state)
     
     def pop_state(self):
-        self.pos, self.h, self.l, self.u = self.stack.pop()
+        [
+            self.pos,
+            self.h,
+            self.l,
+            self.u,
+            self.thickness
+        ] = self.stack.pop()
 
 
 def draw_lstring(lstring):
@@ -155,12 +166,23 @@ def draw_lstring(lstring):
             turtle.rotate_l(params[0])
         elif l == '^':
             turtle.rotate_l(-params[0])
+        elif l == '!':
+            turtle.thickness = params[0]
+    
+    
 
 def execute(context):
-    s = "F(1)+(90)F(1)"
-    lstring = parse_lstring(s)
-    bprint(lstring_to_str(lstring))
+    axiom = parse_lstring("!(.01)F(1)/(45)A")
+    rules = {
+        "A" : parse_lstring("!(.01732)F(.5)[&(19)F(.50)A]/(94)[&(19)F(.50)A]/(132.63)[&(19)F(.50)A]"),
+        "F" : [lambda F: LNode("F", F.params[0] * 1.1)],
+        "!" : [lambda n: LNode("!", n.params[0] * 1.7)]
+    }
+    
+    lstring = generate_lstring(axiom, rules, 5)
+    # bprint(lstring_to_str(lstring))
     draw_lstring(lstring)
+
     
     return {'FINISHED'}
 
@@ -168,13 +190,6 @@ def execute(context):
 execute(bpy.context)
 
 
-if __name__ == '__main__':
-	axiom = parse_lstring("F(1)")
-	rules = {
-		# "F" : parse_lstring("F[&FA]/(94.74)[&FA]/(132.62)[&FA]")
-		"F" : [LNode("F", 1), lambda ln: LNode("F", ln.params[0] + 1)]
-	}
-	print(lstring_to_str(apply_rules(axiom, rules, 2)))
 
 
 
