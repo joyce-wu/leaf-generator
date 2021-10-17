@@ -9,15 +9,17 @@ The Algorithmic Beauty of Plants, ch 1-2
 import bpy
 from mathutils import Vector, Matrix
 from math import *
+import random
 
 # from https://blender.stackexchange.com/questions/6173/where-does-console-output-go
 def bprint(*data):
-    for window in bpy.context.window_manager.windows:
-        screen = window.screen
-        for area in screen.areas:
-            if area.type == 'CONSOLE':
-                override = {'window': window, 'screen': screen, 'area': area}
-                bpy.ops.console.scrollback_append(override, text=' '.join(str(x) for x in data), type="OUTPUT")  
+    print(*data)
+#    for window in bpy.context.window_manager.windows:
+#        screen = window.screen
+#        for area in screen.areas:
+#            if area.type == 'CONSOLE':
+#                override = {'window': window, 'screen': screen, 'area': area}
+#                bpy.ops.console.scrollback_append(override, text=' '.join(str(x) for x in data), type="OUTPUT")  
 
 
 class LNode:
@@ -96,12 +98,14 @@ def draw_cylinder_between(p1, p2, radius):
     
 
 class Turtle:
-    def __init__(self):
+    def __init__(self, tropism=None, tropism_scale=0):
         self.pos = Vector([0, 0, 0])
         self.h = Vector([0, 0, 1]) # heading, starts directly up
         self.l = Vector([-1, 0, 0]) # direction left, towards negative x
         self.u = Vector([0, -1, 0]) # direction up, towards negative y
         self.thickness = 0.05
+        self.tropism = tropism
+        self.tropism_scale = tropism_scale
         self.stack = []
     
     def rotate_h(self, deg):
@@ -120,7 +124,8 @@ class Turtle:
         self.l.rotate(mat)
     
     def rotate_horiziontal(self):
-        self.l = self.v.cross(h)
+        v = Vector([0, 0, 1])
+        self.l = v.cross(h)
         self.l.normalize()
         self.u = self.h.cross(self.l)
         
@@ -128,6 +133,22 @@ class Turtle:
         end = self.pos + dist * self.h
         draw_cylinder_between(self.pos, end, self.thickness)
         self.pos = end
+        
+        if self.tropism and self.tropism_scale:
+            torque = self.h.cross(self.tropism)
+            theta = 0
+            if torque.length > 0.0001:
+                try:
+                    theta = asin(min(torque.length, 1))
+                except:
+                    bprint('bad torque length', torque.length)
+                    
+            if theta:
+                torque.normalize()
+                mat = Matrix.Rotation(theta * self.tropism_scale, 4, torque)
+                self.h.rotate(mat)
+                self.l.rotate(mat)
+                self.u.rotate(mat)
         
     def push_state(self):
         state = [
@@ -149,8 +170,8 @@ class Turtle:
         ] = self.stack.pop()
 
 
-def draw_lstring(lstring):
-    turtle = Turtle()
+def draw_lstring(lstring, tropism=None, tropism_scale=0):
+    turtle = Turtle(tropism=tropism, tropism_scale=tropism_scale)
     for lnode in lstring:
         l, params = lnode.l, lnode.params
         if l == 'F':
@@ -173,22 +194,70 @@ def draw_lstring(lstring):
             turtle.rotate_l(-params[0])
         elif l == '$':
             turtle.rotate_horizontal()
+        elif l == '?':
+            turtle.rotate_h(360*random.random())
         elif l == '!':
             turtle.thickness = params[0]
     
     
 
 def execute(context):
-    axiom = parse_lstring("!(.01)F(1)/(45)A")
+    # todo: make these inputs
+#    params = {
+#        'n_iter' : 5, # number of iterations
+#        'length' : 0.5, # scales lengths of all branches
+#        'length_scale' : 1.1, # scales lengths of lower-order branches relative to higher-order ones
+#        'thickness' : 0.01, # scales thicknesses of all branches
+#        # thickness_scale is not paramaterized since it depends on branching rules
+#        'branch_angle' : 19, # branching angle, in degrees
+#        'tropism' : Vector([0, 0, -1]), # direction to bend branches towards
+#        'tropism_scale' : 0.22, # strength of bending force
+#        'seed' : 3 # random seed
+#    }
+
+#    params = {
+#        'n_iter' : 5, # number of iterations
+#        'length' : 0.5, # scales lengths of all branches
+#        'length_scale' : 1.07, # scales lengths of lower-order branches relative to higher-order ones
+#        'thickness' : 0.01, # scales thicknesses of all branches
+#        # thickness_scale is not paramaterized since it depends on branching rules
+#        'branch_angle' : 55, # branching angle, in degrees
+#        'tropism' : Vector([-0.61, -0.19, 0.77]), # direction to bend branches towards
+#        'tropism_scale' : 0.40, # strength of bending force
+#        'seed' : 3 # random seed
+#    }
+
+    params = {
+        'n_iter' : 4,
+        'length' : 0.5, # scales lengths of all branches
+        'length_scale' : 1.05, # scales lengths of lower-order branches relative to higher-order ones
+        'thickness' : 0.01, # scales thicknesses of all branches
+        # thickness_scale is not paramaterized since it depends on branching rules
+        'branch_angle' : 20, # branching angle, in degrees
+        'tropism' : Vector([-.4, 0, -1]), # direction to bend branches towards
+        'tropism_scale' : 0.39, # strength of bending force
+        'seed' : 30 # random seed
+    }
+
+    axiom = parse_lstring("!({thickness})F({length2})A".format(**params, length2=params['length']*2))
+    
     rules = {
-        "A" : parse_lstring("!(.01732)/(45)F(.5)[&(19)F(.50)A]/(94)[&(19)F(.50)A]/(132.63)[&(19)F(.50)A]"),
-        "F" : [lambda F: LNode("F", F.params[0] * 1.1)],
+        "A" : parse_lstring(
+            "!({th})?F({length})[&({branch_angle})F({length})A]/(94)[&({branch_angle})F({length})A]/(132.63)[&({branch_angle})F({length})A]".format(**params, th=params['thickness']*1.73)),
+        "F" : [lambda F: LNode("F", F.params[0] * params['length_scale'])],
         "!" : [lambda n: LNode("!", n.params[0] * 1.7)]
     }
+#    axiom = parse_lstring("!(.01)F(1)/(45)A")
+#    rules = {
+#        "A" : parse_lstring("!(.01732)/(45)F(.5)[&(19)F(.50)A]/(94)[&(19)F(.50)A]/(132.63)[&(19)F(.50)A]"),
+#        "F" : [lambda F: LNode("F", F.params[0] * 1.1)],
+#        "!" : [lambda n: LNode("!", n.params[0] * 1.7)]
+#    }
     
-    lstring = generate_lstring(axiom, rules, 2)
+    lstring = generate_lstring(axiom, rules, params['n_iter'])
     # bprint(lstring_to_str(lstring))
-    draw_lstring(lstring)
+    random.seed(params['seed'])
+    draw_lstring(lstring, tropism=params['tropism'], tropism_scale=params['tropism_scale'])
 
     
     return {'FINISHED'}
@@ -196,14 +265,3 @@ def execute(context):
 
 execute(bpy.context)
 
-
-
-
-
-
-
-
-
-
-
-	
