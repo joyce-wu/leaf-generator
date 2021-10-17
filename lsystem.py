@@ -117,6 +117,7 @@ def gen_leaf(leaf_type, scale, location, direction, bend_angle):
     modifier.angle = bend_angle
     
     obj.location = location
+    obj.rotation_euler = direction
     
 
 class Turtle:
