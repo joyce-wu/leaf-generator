@@ -30,19 +30,42 @@ class LeafGen(bpy.types.Operator):
     bl_label = "Generate Leaf"
     bl_options = {'REGISTER'}
     
-    
-    def execute(self, context):
-        mytool = context.scene.my_tool
-        leaf_type = int(mytool.leaf_shape_input) - 1
+    def gen_leaf(leaf_type, scale, location, direction, bend_angle):
         mesh = bpy.data.meshes.new(name="Leaf")
         shape = leaf_shape(leaf_type)
         verts = shape[0]
         faces = shape[1]
+        for vert in verts:
+            vert.x *= scale
+            vert.y *= scale
         mesh.from_pydata(verts, [], faces) 
+        
         obj = bpy.data.objects.new("Leaf", mesh)
         bpy.context.scene.collection.objects.link(obj)
         bpy.context.view_layer.objects.active = obj
         obj.select_get()
+        
+        modifier = obj.modifiers.new(name='Bend', type='SIMPLE_DEFORM')
+        modifier.deform_method = 'BEND'
+        modifier.deform_axis = 'X'
+        modifier.angle = bend_angle
+        
+        obj.location = location
+        obj.rotation_euler = direction
+    
+    def execute(self, context):
+        mytool = context.scene.my_tool
+        leaf_type = int(mytool.leaf_shape_input) - 1
+        LeafGen.gen_leaf(leaf_type, 1.0, (1, 0.5, 0), (0.5, 1.0, -0.4), 1.0)
+#        mesh = bpy.data.meshes.new(name="Leaf")
+#        shape = leaf_shape(leaf_type)
+#        verts = shape[0]
+#        faces = shape[1]
+#        mesh.from_pydata(verts, [], faces) 
+#        obj = bpy.data.objects.new("Leaf", mesh)
+#        bpy.context.scene.collection.objects.link(obj)
+#        bpy.context.view_layer.objects.active = obj
+#        obj.select_get()
         return {'FINISHED'}
     
 ##################################################################
