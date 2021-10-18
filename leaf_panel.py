@@ -11,6 +11,7 @@ bl_info = {
 
 import bpy
 from mathutils import Vector
+from math import radians
 import logging
 
 class LeafProperties(bpy.types.PropertyGroup):
@@ -48,7 +49,7 @@ class LeafGen(bpy.types.Operator):
         modifier = obj.modifiers.new(name='Bend', type='SIMPLE_DEFORM')
         modifier.deform_method = 'BEND'
         modifier.deform_axis = 'X'
-        modifier.angle = bend_angle
+        modifier.angle = radians(bend_angle)
         
         obj.location = location
         obj.rotation_euler = direction
@@ -56,7 +57,7 @@ class LeafGen(bpy.types.Operator):
     def execute(self, context):
         mytool = context.scene.my_tool
         leaf_type = int(mytool.leaf_shape_input) - 1
-        LeafGen.gen_leaf(leaf_type, 1.0, (1, 0.5, 0), (0.5, 1.0, -0.4), 1.0)
+        LeafGen.gen_leaf(leaf_type, 0.5, (1, 0.5, 0), (0.5, 1.0, -0.4), 180)
 #        mesh = bpy.data.meshes.new(name="Leaf")
 #        shape = leaf_shape(leaf_type)
 #        verts = shape[0]

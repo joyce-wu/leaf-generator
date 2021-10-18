@@ -2,9 +2,19 @@
 
 Sources:
 https://github.com/abiusx/L3D (to quickly test generated strings)
+https://github.com/friggog/tree-gen/blob/master/leaf.py
 The Algorithmic Beauty of Plants, ch 1-2
 
 '''
+bl_info = {
+    "name": "Tree Generator",
+    "category": "Object",
+    "description": "Generate trees with leaf and branch variation",
+    "author": "Lance Tan and Joyce Wu",
+    "version": (1, 0),
+    'blender': (2, 80, 0),
+    "location": "View3D > Tool",
+}
 
 import bpy
 from mathutils import Vector, Matrix
@@ -21,7 +31,22 @@ def bprint(*data):
 #                override = {'window': window, 'screen': screen, 'area': area}
 #                bpy.ops.console.scrollback_append(override, text=' '.join(str(x) for x in data), type="OUTPUT")  
 
-
+class TreeProperties(bpy.types.PropertyGroup):
+    leaf_types = [('1', 'Ovate', 'Ovate'), ('2', 'Linear', 'Linear'), ('3', 'Cordate', 'Cordate'), ('4', 'Maple', 'Maple'), ('5', 'Palmate', 'Palmate'), ('6', 'Spiky Oak', 'Spiky Oak'), ('7', 'Rounded Oak', 'Rounded Oak'), ('8', 'Elliptic', 'Elliptic'), ('9', 'Rectangle', 'Rectangle'), ('10', 'Triangle', 'Triangle')]
+    
+    leaf_type : bpy.props.EnumProperty(name="Type", items=leaf_types)
+    leaf_bend : bpy.props.FloatProperty(name="Bend", default=90, min=0, max=360)
+    leaf_scale : bpy.props.FloatProperty(name="Scale", default=0.8)
+    leaf_branch_angle : bpy.props.IntProperty(name="Leaf Branch Angle", default=41)
+    branch_length : bpy.props.FloatProperty(name="Length", default=0.5, min=0.01)
+    branch_length_scale : bpy.props.FloatProperty(name="Length Scale", default=1.1)
+    branch_thickness : bpy.props.FloatProperty(name="Thickness", default=0.01)
+    branch_angle : bpy.props.FloatProperty(name="Angle", default=19, min=0, max=360)
+    n_iter : bpy.props.IntProperty(name="Level Count", default=4, min=1, max=5)
+    tropism : bpy.props.FloatVectorProperty(name="Tropism", default=(0, 0, -1), size=3)
+    tropism_scale : bpy.props.FloatProperty(name="Tropism Scale", default=0.22)
+    seed : bpy.props.IntProperty(name="Seed", default=6)
+        
 class LNode:
     def __init__(self, l, *params):
         self.l = l
@@ -111,14 +136,13 @@ def gen_leaf(leaf_type, scale, location, direction, bend_angle):
     bpy.context.view_layer.objects.active = obj
     obj.select_get()
     
-    modifier = obj.modifiers.new(name='Bend', type='SIMPLE_DEFORM')
-    modifier.deform_method = 'BEND'
-    modifier.deform_axis = 'X'
-    modifier.angle = bend_angle
-    
     obj.location = location + bpy.context.scene.cursor.location
     obj.rotation_euler = direction
     
+    modifier = obj.modifiers.new(name='Bend', type='SIMPLE_DEFORM')
+    modifier.deform_method = 'BEND'
+    modifier.deform_axis = 'X'
+    modifier.angle = radians(bend_angle)
 
 class Turtle:
     def __init__(self, tropism=None, tropism_scale=0, **params):
@@ -240,82 +264,50 @@ def draw_lstring(lstring, **params):
             turtle.draw_leaf()
     
     
+class TreeGen(bpy.types.Operator):
+    bl_idname = "object.tree_gen"
+    bl_category = "Tree Generator"
+    bl_label = "Generate Tree"
+    bl_options = {'REGISTER'}
+    
+    def execute(self, context):
+        mytool = context.scene.my_tool
+        # todo: make these inputs
+        params = {
+            'n_iter' : mytool.n_iter, # number of iterations
+            'length' : mytool.branch_length, # scales lengths of all branches
+            'length_scale' : mytool.branch_length_scale, # scales lengths of lower-order branches relative to higher-order ones
+            'thickness' : mytool.branch_thickness, # scales thicknesses of all branches
+            # thickness_scale is not paramaterized since it depends on branching rules
+            'branch_angle' : mytool.branch_angle, # branching angle, in degrees
+            'leaf_angle' : mytool.leaf_branch_angle, # Angle between leaf and branch
+            'leaf_scale' : mytool.leaf_scale, # Scaling factor for leaf
+            'leaf_bend' : mytool.leaf_bend, # Bend angle for leaf
+            'leaf_type': int(mytool.leaf_type) - 1, # leaf type
+            'tropism' : mytool.tropism, # direction to bend branches towards
+            'tropism_scale' : mytool.tropism_scale, # strength of bending force
+            'seed' : mytool.seed # random seed
+        }
+        
+        axiom = parse_lstring("!({thickness})F({length2})A".format(**params, length2=params['length']*2))
 
-def execute(context):
-    # todo: make these inputs
-    params = {
-        'n_iter' : 4, # number of iterations
-        'length' : 0.5, # scales lengths of all branches
-        'length_scale' : 1.1, # scales lengths of lower-order branches relative to higher-order ones
-        'thickness' : 0.01, # scales thicknesses of all branches
-        # thickness_scale is not paramaterized since it depends on branching rules
-        'branch_angle' : 19, # branching angle, in degrees
-        'leaf_angle' : 41, # Angle between leaf and branch
-        'leaf_scale' : 0.8, # Scaling factor for leaf
-        'leaf_bend' : 0, # Bend angle for leaf
-        'leaf_type': 3, # leaf type
-        'tropism' : Vector([0, 0, -1]), # direction to bend branches towards
-        'tropism_scale' : 0.22, # strength of bending force
-        'seed' : 6 # random seed
-    }
-
-#    params = {
-#        'n_iter' : 5, # number of iterations
-#        'length' : 0.5, # scales lengths of all branches
-#        'length_scale' : 1.07, # scales lengths of lower-order branches relative to higher-order ones
-#        'thickness' : 0.01, # scales thicknesses of all branches
-#        # thickness_scale is not paramaterized since it depends on branching rules
-#        'branch_angle' : 55, # branching angle, in degrees
-#        'tropism' : Vector([-0.61, -0.19, 0.77]), # direction to bend branches towards
-#        'tropism_scale' : 0.40, # strength of bending force
-#        'seed' : 3 # random seed
-#    }
-
-#    params = {
-#        'n_iter' : 3,
-#        'length' : 0.5, # scales lengths of all branches
-#        'length_scale' : 1.05, # scales lengths of lower-order branches relative to higher-order ones
-#        'thickness' : 0.01, # scales thicknesses of all branches
-#        # thickness_scale is not paramaterized since it depends on branching rules
-#        'branch_angle' : 40, # branching angle, in degrees
-#        'tropism' : Vector([-.4, 0, -1]), # direction to bend branches towards
-#        'tropism_scale' : 0.3, # strength of bending force
-#        'seed' : 30 # random seed
-#    }
-
-    axiom = parse_lstring("!({thickness})F({length2})A".format(**params, length2=params['length']*2))
-    
-    rules = {
-        "A" : parse_lstring(
-            "!({th})?F({length})[&({branch_angle})F({length})A]/(94)[&({branch_angle})F({length})A]/(132.63)[&({branch_angle})F({length})A]".format(**params, th=params['thickness']*1.73)),
-        "F" : [lambda F: LNode("F", F.params[0] * params['length_scale'])],
-        "!" : [lambda n: LNode("!", n.params[0] * 1.7)]
-    }
-#    axiom = parse_lstring("!(.01)F(1)/(45)A")
-#    rules = {
-#        "A" : parse_lstring("!(.01732)/(45)F(.5)[&(19)F(.50)A]/(94)[&(19)F(.50)A]/(132.63)[&(19)F(.50)A]"),
-#        "F" : [lambda F: LNode("F", F.params[0] * 1.1)],
-#        "!" : [lambda n: LNode("!", n.params[0] * 1.7)]
-#    }
-    
-    lstring = generate_lstring(axiom, rules, params['n_iter'])
-    
-    
-    # second pass--add leaves
-    leaf_rules = {
-        "A" : parse_lstring("?[&({leaf_angle})L]/(120)[&({leaf_angle})L]/(120)[&({leaf_angle})L]".format(**params))
-    }
-    lstring = generate_lstring(lstring, leaf_rules, 1)
-    
-    
-    random.seed(params['seed'])
-    draw_lstring(lstring, **params)
-    
-    # gen_leaf(leaf_type, scale, location, euler, bend_angle)
-    # gen_leaf(3, 0.3, (0,0,0), (0,0,0), 0)
-
-    
-    return {'FINISHED'}
+        rules = {
+            "A" : parse_lstring(
+                "!({th})?F({length})[&({branch_angle})F({length})A]/(94)[&({branch_angle})F({length})A]/(132.63)[&({branch_angle})F({length})A]".format(**params, th=params['thickness']*1.73)),
+            "F" : [lambda F: LNode("F", F.params[0] * params['length_scale'])],
+            "!" : [lambda n: LNode("!", n.params[0] * 1.7)]
+        }
+        lstring = generate_lstring(axiom, rules, params['n_iter'])
+        
+        # second pass--add leaves
+        leaf_rules = {
+            "A" : parse_lstring("?[&({leaf_angle})L]/(120)[&({leaf_angle})L]/(120)[&({leaf_angle})L]".format(**params))
+        }
+        lstring = generate_lstring(lstring, leaf_rules, 1)
+        
+        random.seed(params['seed'])
+        draw_lstring(lstring, **params)    
+        return {'FINISHED'}
 
 def leaf_shape(t):
     return [
@@ -560,5 +552,59 @@ def leaf_shape(t):
     ][t]
 
 
-execute(bpy.context)
+#execute(bpy.context)
+
+class TreePanel(bpy.types.Panel):
+    bl_label = "Tree Generator"
+    bl_idname = "OBJECT_PT_Tree"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Tree Generator"
+    
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        mytool = scene.my_tool
+        
+        row = layout.row()
+        row.label(text="Tree Parameters")
+        box = layout.box()
+        box.prop(mytool, "n_iter")
+        row = box.row()
+        row.prop(mytool, "tropism")
+        box.prop(mytool, "tropism_scale")
+        box.prop(mytool, "seed")
+        
+        row = layout.row()
+        row.label(text="Leaf Parameters:")
+        box = layout.box()
+        box.prop(mytool, "leaf_type")
+        box.prop(mytool, "leaf_bend")
+        box.prop(mytool, "leaf_scale")
+        box.prop(mytool, "leaf_branch_angle")
+        
+        row = layout.row()
+        row.label(text="Branch Parameters")
+        box = layout.box()
+        box.prop(mytool, "branch_length")
+        box.prop(mytool, "branch_length_scale")
+        box.prop(mytool, "branch_thickness")
+        box.prop(mytool, "branch_angle")
+        
+        layout.operator(TreeGen.bl_idname)
+        
+classes = [TreeProperties, TreePanel, TreeGen]
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+        bpy.types.Scene.my_tool = bpy.props.PointerProperty(type=TreeProperties)
+
+def unregister():
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
+        del bpy.types.Scene.my_tool
+
+if __name__ == "__main__":
+    register()
 
