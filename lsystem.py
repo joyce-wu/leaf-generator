@@ -17,19 +17,10 @@ bl_info = {
 }
 
 import bpy
+import bmesh
 from mathutils import Vector, Matrix
 from math import *
 import random
-
-# from https://blender.stackexchange.com/questions/6173/where-does-console-output-go
-def bprint(*data):
-    print(*data)
-#    for window in bpy.context.window_manager.windows:
-#        screen = window.screen
-#        for area in screen.areas:
-#            if area.type == 'CONSOLE':
-#                override = {'window': window, 'screen': screen, 'area': area}
-#                bpy.ops.console.scrollback_append(override, text=' '.join(str(x) for x in data), type="OUTPUT")  
 
 class TreeProperties(bpy.types.PropertyGroup):
     leaf_types = [('1', 'Ovate', 'Ovate'), ('2', 'Linear', 'Linear'), ('3', 'Cordate', 'Cordate'), ('4', 'Maple', 'Maple'), ('5', 'Palmate', 'Palmate'), ('6', 'Spiky Oak', 'Spiky Oak'), ('7', 'Rounded Oak', 'Rounded Oak'), ('8', 'Elliptic', 'Elliptic'), ('9', 'Rectangle', 'Rectangle'), ('10', 'Triangle', 'Triangle')]
@@ -68,81 +59,143 @@ class LNode:
                 ans.append(node_or_func)
         return ans
 
-
-def parse_lstring(s):
-    i = 0
-    ans = []
-    while i < len(s):
-        ch = s[i]
-        if i+1 < len(s) and s[i+1] == '(':
-            j = s.find(')', i+1)
-            params = s[i+2:j]
-            params = [float(x) for x in params.split(',')]
-            ans.append(LNode(ch, *params))
-            i = j + 1
-        else:
-            ans.append(LNode(ch))
-            i += 1
-
-    return ans
-
-
-def lstring_to_str(lstring):
-    return ''.join(str(lnode) for lnode in lstring)
-
-def generate_lstring(axiom, rules, n_iter):
-    lstring = axiom    
-    for i in range(n_iter):
+class LSystem:
+    def parse_lstring(s):
+        i = 0
         ans = []
-        for node in lstring:
-            if node.l in rules.keys():
-                ans += node.apply_rule(rules[node.l])
+        while i < len(s):
+            ch = s[i]
+            if i+1 < len(s) and s[i+1] == '(':
+                j = s.find(')', i+1)
+                params = s[i+2:j]
+                params = [float(x) for x in params.split(',')]
+                ans.append(LNode(ch, *params))
+                i = j + 1
             else:
-                ans.append(node)
-        lstring = ans
+                ans.append(LNode(ch))
+                i += 1
 
-    return lstring
+        return ans
 
+    def lstring_to_str(lstring):
+        return ''.join(str(lnode) for lnode in lstring)
 
-# from https://blender.stackexchange.com/questions/5898/how-can-i-create-a-cylinder-linking-two-points-with-python
-def draw_cylinder_between(p1, p2, radius):
-    bpy.ops.curve.primitive_bezier_curve_add()
-    obj = bpy.context.object
-    obj.data.dimensions = '3D'
-    obj.data.fill_mode = 'FULL'
-    obj.data.bevel_depth = radius
-    obj.data.bevel_resolution = 4
+    def generate_lstring(axiom, rules, n_iter):
+        lstring = axiom    
+        for i in range(n_iter):
+            ans = []
+            for node in lstring:
+                if node.l in rules.keys():
+                    ans += node.apply_rule(rules[node.l])
+                else:
+                    ans.append(node)
+            lstring = ans
 
-    obj.data.splines[0].bezier_points[0].co = p1
-    obj.data.splines[0].bezier_points[0].handle_left_type = 'VECTOR'
-    obj.data.splines[0].bezier_points[0].handle_right_type = 'VECTOR'
-
-    obj.data.splines[0].bezier_points[1].co = p2
-    obj.data.splines[0].bezier_points[1].handle_left_type = 'VECTOR'
-    obj.data.splines[0].bezier_points[1].handle_right_type = 'VECTOR'
-
-def gen_leaf(leaf_type, scale, location, direction, bend_angle):
-    mesh = bpy.data.meshes.new(name="Leaf")
-    shape = leaf_shape(leaf_type)
-    verts = shape[0]
-    faces = shape[1]
+        return lstring
     
-    verts = [vert.zxy * scale for vert in verts]
+    def draw_lstring(lstring, **params):
+        turtle = Turtle(**params)
+        for lnode in lstring:
+            l, params = lnode.l, lnode.params
+            if l == 'F':
+                turtle.draw(params[0])
+            elif l == '[':
+                turtle.push_state()
+            elif l == ']':
+                turtle.pop_state()
+            elif l == '/':
+                turtle.rotate_h(params[0])
+            elif l == '\\':
+                turtle.rotate_h(-params[0])
+            elif l == '+':
+                turtle.rotate_u(params[0])
+            elif l == '-':
+                turtle.rotate_u(-params[0])
+            elif l == '&':
+                turtle.rotate_l(params[0])
+            elif l == '^':
+                turtle.rotate_l(-params[0])
+            elif l == '$':
+                turtle.rotate_horizontal()
+            elif l == '?':
+                turtle.rotate_h(360*random.random())
+            elif l == '!':
+                turtle.thickness = params[0]
+            elif l == 'L':
+                turtle.draw_leaf()
+        
     
-    mesh.from_pydata(verts, [], faces) 
+
+class Branch(bpy.types.Operator):
+    bl_idname = "object.branch_gen"
+    bl_category = "Branch Generator"
+    bl_label = "Generate Branch"
+    bl_options = {'REGISTER'}
     
-    obj = bpy.data.objects.new("Leaf", mesh)
-    bpy.context.scene.collection.objects.link(obj)
-    bpy.context.view_layer.objects.active = obj
-    obj.select_get()
+    def verts():
+        verts = []
+        for k in range(48):
+            angle = (2 * pi) / 48 * k
+            r = 1 + (cos(4 * angle) / 6)
+            verts.append(Vector((r * cos(angle), r * sin(angle), 0)))
+        return verts
     
-    obj.location = location + bpy.context.scene.cursor.location
-    obj.rotation_euler = direction
+    def faces():
+        faces = []
+        for k in range(48):
+            faces.append(k)    
+        return [faces]
     
-    modifier = obj.modifiers.new(name='Bend', type='SIMPLE_DEFORM')
-    modifier.deform_method = 'BEND'
-    modifier.deform_axis = 'X'
-    modifier.angle = radians(bend_angle)
+    verts = verts()
+    faces = faces()
+    
+    def gen_branch(pos, dist, end, direction, thickness):
+        branch_verts = [vert.xyz * thickness + pos.xyz for vert in Branch.verts]
+        mesh = bpy.data.meshes.new(name="Branch")
+        mesh.from_pydata(branch_verts, [], Branch.faces)
+        obj = bpy.data.objects.new("Branch", mesh)
+        bpy.context.scene.collection.objects.link(obj)
+        bpy.context.view_layer.objects.active = obj
+        obj.select_get()
+        
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        faces = bm.faces[:]
+        extrude_vec = end - pos
+        for face in faces:
+            r = bmesh.ops.extrude_discrete_faces(bm, faces=[face])
+            bmesh.ops.translate(bm, vec=extrude_vec, verts=r['faces'][0].verts)
+        bm.to_mesh(obj.data)
+        obj.data.update()
+
+class Leaf(bpy.types.Operator):
+    bl_idname = "object.leaf_gen"
+    bl_category = "Leaf Generator"
+    bl_label = "Generate Leaf"
+    bl_options = {'REGISTER'}
+    
+    def gen_leaf(leaf_type, scale, location, direction, bend_angle):
+        mesh = bpy.data.meshes.new(name="Leaf")
+        shape = leaf_shape(leaf_type)
+        verts = shape[0]
+        faces = shape[1]
+        
+        verts = [vert.zxy * scale for vert in verts]
+        
+        mesh.from_pydata(verts, [], faces) 
+        
+        obj = bpy.data.objects.new("Leaf", mesh)
+        bpy.context.scene.collection.objects.link(obj)
+        bpy.context.view_layer.objects.active = obj
+        obj.select_get()
+        
+        obj.location = location + bpy.context.scene.cursor.location
+        obj.rotation_euler = direction
+        
+        modifier = obj.modifiers.new(name='Bend', type='SIMPLE_DEFORM')
+        modifier.deform_method = 'TWIST'
+        modifier.deform_axis = 'X'
+        modifier.angle = radians(bend_angle)
 
 class Turtle:
     def __init__(self, tropism=None, tropism_scale=0, **params):
@@ -183,7 +236,10 @@ class Turtle:
         
     def draw(self, dist):
         end = self.pos + dist * self.h
-        draw_cylinder_between(self.pos, end, self.thickness)
+        mat = Matrix([self.h, self.l, self.u])
+        mat.transpose()
+        euler = mat.to_euler('XYZ')
+        Branch.gen_branch(self.pos, dist, end, euler, self.thickness)
         self.pos = end
         
         if self.tropism and self.tropism_scale:
@@ -208,7 +264,7 @@ class Turtle:
         mat.transpose()
         euler = mat.to_euler('XYZ')
         
-        gen_leaf(self.params['leaf_type'], self.params['leaf_scale'], self.pos, euler, self.params['leaf_bend'])
+        Leaf.gen_leaf(self.params['leaf_type'], self.params['leaf_scale'], self.pos, euler, self.params['leaf_bend'])
         
         
     def push_state(self):
@@ -228,41 +284,7 @@ class Turtle:
             self.l,
             self.u,
             self.thickness
-        ] = self.stack.pop()
-
-
-def draw_lstring(lstring, **params):
-    
-    turtle = Turtle(**params)
-    for lnode in lstring:
-        l, params = lnode.l, lnode.params
-        if l == 'F':
-            turtle.draw(params[0])
-        elif l == '[':
-            turtle.push_state()
-        elif l == ']':
-            turtle.pop_state()
-        elif l == '/':
-            turtle.rotate_h(params[0])
-        elif l == '\\':
-            turtle.rotate_h(-params[0])
-        elif l == '+':
-            turtle.rotate_u(params[0])
-        elif l == '-':
-            turtle.rotate_u(-params[0])
-        elif l == '&':
-            turtle.rotate_l(params[0])
-        elif l == '^':
-            turtle.rotate_l(-params[0])
-        elif l == '$':
-            turtle.rotate_horizontal()
-        elif l == '?':
-            turtle.rotate_h(360*random.random())
-        elif l == '!':
-            turtle.thickness = params[0]
-        elif l == 'L':
-            turtle.draw_leaf()
-    
+        ] = self.stack.pop()    
     
 class TreeGen(bpy.types.Operator):
     bl_idname = "object.tree_gen"
@@ -272,7 +294,6 @@ class TreeGen(bpy.types.Operator):
     
     def execute(self, context):
         mytool = context.scene.my_tool
-        # todo: make these inputs
         params = {
             'n_iter' : mytool.n_iter, # number of iterations
             'length' : mytool.branch_length, # scales lengths of all branches
@@ -289,24 +310,24 @@ class TreeGen(bpy.types.Operator):
             'seed' : mytool.seed # random seed
         }
         
-        axiom = parse_lstring("!({thickness})F({length2})A".format(**params, length2=params['length']*2))
+        axiom = LSystem.parse_lstring("!({thickness})F({length2})A".format(**params, length2=params['length']*2))
 
         rules = {
-            "A" : parse_lstring(
+            "A" : LSystem.parse_lstring(
                 "!({th})?F({length})[&({branch_angle})F({length})A]/(94)[&({branch_angle})F({length})A]/(132.63)[&({branch_angle})F({length})A]".format(**params, th=params['thickness']*1.73)),
             "F" : [lambda F: LNode("F", F.params[0] * params['length_scale'])],
             "!" : [lambda n: LNode("!", n.params[0] * 1.7)]
         }
-        lstring = generate_lstring(axiom, rules, params['n_iter'])
+        lstring = LSystem.generate_lstring(axiom, rules, params['n_iter'])
         
         # second pass--add leaves
         leaf_rules = {
-            "A" : parse_lstring("?[&({leaf_angle})L]/(120)[&({leaf_angle})L]/(120)[&({leaf_angle})L]".format(**params))
+            "A" : LSystem.parse_lstring("?[&({leaf_angle})L]/(120)[&({leaf_angle})L]/(120)[&({leaf_angle})L]".format(**params))
         }
-        lstring = generate_lstring(lstring, leaf_rules, 1)
+        lstring = LSystem.generate_lstring(lstring, leaf_rules, 1)
         
         random.seed(params['seed'])
-        draw_lstring(lstring, **params)    
+        LSystem.draw_lstring(lstring, **params)  
         return {'FINISHED'}
 
 def leaf_shape(t):
@@ -551,9 +572,6 @@ def leaf_shape(t):
         ),
     ][t]
 
-
-#execute(bpy.context)
-
 class TreePanel(bpy.types.Panel):
     bl_label = "Tree Generator"
     bl_idname = "OBJECT_PT_Tree"
@@ -593,7 +611,7 @@ class TreePanel(bpy.types.Panel):
         
         layout.operator(TreeGen.bl_idname)
         
-classes = [TreeProperties, TreePanel, TreeGen]
+classes = [TreeProperties, TreePanel, TreeGen, Leaf, Branch]
 
 def register():
     for cls in classes:
