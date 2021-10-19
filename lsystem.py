@@ -49,7 +49,6 @@ class LNode:
         else:
             return self.l + '(' + ','.join('{:.3f}'.format(x) for x in self.params) + ')'
 
-
     def apply_rule(self, successors):
         ans = []
         for node_or_func in successors:
@@ -123,8 +122,6 @@ class LSystem:
                 turtle.thickness = params[0]
             elif l == 'L':
                 turtle.draw_leaf()
-        
-    
 
 class Branch(bpy.types.Operator):
     bl_idname = "object.branch_gen"
