@@ -5,7 +5,7 @@ import random
 
 params = {
     'animation_step' : 5,
-    'animation_length' : 600 * 5,
+    'animation_length' : 300 * 5,
     'visual_range' : 7.5,       # radius of vision for each boid
     'collision_radius' : 2.0,   # collision radius
     
@@ -15,10 +15,10 @@ params = {
     'match_velocity' : 1.0,
     'stay_in_territory' : 1.0,
     
-    'max_speed': 15.0,
-    'territory_center' : Vector([0,0,5]),
-    'territory_radius' : 20,
-    'count' : 30,               # number of boids
+    'max_speed': 35.0,
+    'territory_center' : Vector([0,0,10]),
+    'territory_radius' : 40,
+    'count' : 50,               # number of boids
     'seed' : 123456
 }
 
@@ -34,6 +34,7 @@ class Boid:
 
     def save_frame(self):
         self.p += self.v
+        self.p.z = max(self.p.z, 0)
         self.history.append( (self.p.copy(), self.v.copy()) )
 
     def draw(self):
@@ -174,13 +175,19 @@ def boids_limit_speed(boids):
 
 # keep boids in territory
 def boids_stay_in_territory(boids):
-    factor = 1.0 * params['stay_in_territory']
+    factor = 1.0 * params['stay_in_territory'] * params['max_speed']/10
+    r = params['territory_radius']
+    margin = 5
+    r -= margin
     
     for boid in boids:
         dist = boid.p - params['territory_center']
         if dist.length_squared > params['territory_radius']**2:
             dv = dist.normalized()
             boid.v -= dv * factor
+        
+        if boid.p.z < margin:
+            boid.v.z += factor
 
 def gen_right_wing():
     return (
