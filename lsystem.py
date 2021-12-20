@@ -282,6 +282,46 @@ class Turtle:
             self.u,
             self.thickness
         ] = self.stack.pop()    
+        
+class Field:
+    def draw():
+        mesh = bpy.data.meshes.new(name="Grass Blade")
+        shape = leaf_shape(0)
+        verts = [
+                    Vector([0, 0, 0]),
+                    Vector([0, 0, 1]),
+                    Vector([1, 0, 4]),
+                    Vector([2, 0, 6]),
+                    Vector([3, 0, 7]),
+                    Vector([3.5, 0, 7]),
+                    Vector([3, 0, 6.5]),
+                    Vector([1.5, 0, 4]),
+                    Vector([0.5, 0, 1]),
+                    Vector([0.5, 0, 0]),
+                ]
+        faces = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
+        mesh.from_pydata(verts, [], faces) 
+
+        blade = bpy.data.objects.new("Blade", mesh)
+        bpy.context.scene.collection.objects.link(blade)
+        bpy.context.view_layer.objects.active = blade
+        blade.select_get()
+            
+
+        bpy.ops.mesh.primitive_plane_add(size=50)
+        grass = bpy.context.active_object
+        grass.modifiers.new("grass", type='PARTICLE_SYSTEM')
+        ps = grass.particle_systems["grass"].settings
+        ps.type = 'HAIR'
+        ps.use_advanced_hair = True
+        ps.render_type = 'OBJECT'
+        ps.instance_object = bpy.data.objects["Blade"]
+        ps.count = 8000
+        ps.particle_size = 0.09
+        ps.size_random = 0.5
+        ps.use_rotations = True
+        ps.rotation_factor_random = 0.2
+        ps.rotation_mode = 'GLOB_X'
     
 class TreeGen(bpy.types.Operator):
     bl_idname = "object.tree_gen"
@@ -290,6 +330,7 @@ class TreeGen(bpy.types.Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        Field.draw()
         mytool = context.scene.my_tool
         params = {
             'n_iter' : mytool.n_iter, # number of iterations
