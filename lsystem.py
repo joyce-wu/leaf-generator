@@ -22,6 +22,7 @@ from mathutils import Vector, Matrix
 from math import *
 import random
 
+SCENE_SIZE = 50
 class TreeProperties(bpy.types.PropertyGroup):
     leaf_types = [('1', 'Ovate', 'Ovate'), ('2', 'Linear', 'Linear'), ('3', 'Cordate', 'Cordate'), ('4', 'Maple', 'Maple'), ('5', 'Palmate', 'Palmate'), ('6', 'Spiky Oak', 'Spiky Oak'), ('7', 'Rounded Oak', 'Rounded Oak'), ('8', 'Elliptic', 'Elliptic'), ('9', 'Rectangle', 'Rectangle'), ('10', 'Triangle', 'Triangle')]
     
@@ -32,8 +33,8 @@ class TreeProperties(bpy.types.PropertyGroup):
     branch_length : bpy.props.FloatProperty(name="Length", default=0.5, min=0.01)
     branch_length_scale : bpy.props.FloatProperty(name="Length Scale", default=1.1)
     branch_thickness : bpy.props.FloatProperty(name="Thickness", default=0.01)
-    branch_angle : bpy.props.FloatProperty(name="Angle", default=19, min=0, max=360)
-    n_iter : bpy.props.IntProperty(name="Level Count", default=4, min=1, max=5)
+    branch_angle : bpy.props.FloatProperty(name="Angle", default=35, min=0, max=360)
+    n_iter : bpy.props.IntProperty(name="Level Count", default=1, min=1, max=5)
     tropism : bpy.props.FloatVectorProperty(name="Tropism", default=(0, 0, -1), size=3)
     tropism_scale : bpy.props.FloatProperty(name="Tropism Scale", default=0.22)
     seed : bpy.props.IntProperty(name="Seed", default=6)
@@ -93,7 +94,8 @@ class LSystem:
         return lstring
     
     def draw_lstring(lstring, **params):
-        turtle = Turtle(**params)
+        pos = Vector([random.randrange(-SCENE_SIZE/2, SCENE_SIZE/2), random.randrange(-SCENE_SIZE/2, SCENE_SIZE/2), 0])
+        turtle = Turtle(pos=pos, **params)
         for lnode in lstring:
             l, params = lnode.l, lnode.params
             if l == 'F':
@@ -195,9 +197,9 @@ class Leaf(bpy.types.Operator):
         modifier.angle = radians(bend_angle)
 
 class Turtle:
-    def __init__(self, tropism=None, tropism_scale=0, **params):
+    def __init__(self, tropism=None, tropism_scale=0, pos=Vector([0,0,0]), **params):
         # pushed to stack
-        self.pos = Vector([0, 0, 0])
+        self.pos = pos
         self.h = Vector([0, 0, 1]) # heading
         self.l = Vector([1, 0, 0]) # direction left
         self.u = Vector([0, 1, 0]) # direction up
@@ -306,9 +308,14 @@ class Field:
         bpy.context.scene.collection.objects.link(blade)
         bpy.context.view_layer.objects.active = blade
         blade.select_get()
+#        mat = bpy.data.materials.new(name='GrassMaterial')
+#        blade.data.materials.append(mat)
+#        mat.use_nodes=True
+#        mat_nodes = mat.node_tree.nodes
+#        mat_nodes['Principled BSDF'].inputs['Base Color'].default_value=(0.010, 0.0065, 0.8, 1.0)
             
 
-        bpy.ops.mesh.primitive_plane_add(size=50)
+        bpy.ops.mesh.primitive_plane_add(size=SCENE_SIZE)
         grass = bpy.context.active_object
         grass.modifiers.new("grass", type='PARTICLE_SYSTEM')
         ps = grass.particle_systems["grass"].settings
@@ -316,12 +323,12 @@ class Field:
         ps.use_advanced_hair = True
         ps.render_type = 'OBJECT'
         ps.instance_object = bpy.data.objects["Blade"]
-        ps.count = 8000
-        ps.particle_size = 0.09
+        ps.count = 10000
+        ps.particle_size = 0.075
         ps.size_random = 0.5
         ps.use_rotations = True
         ps.rotation_factor_random = 0.2
-        ps.rotation_mode = 'GLOB_X'
+        ps.rotation_mode = 'GLOB_Y'
     
 class TreeGen(bpy.types.Operator):
     bl_idname = "object.tree_gen"
@@ -365,7 +372,8 @@ class TreeGen(bpy.types.Operator):
         lstring = LSystem.generate_lstring(lstring, leaf_rules, 1)
         
         random.seed(params['seed'])
-        LSystem.draw_lstring(lstring, **params)  
+        for num_flowers in range(200):
+            LSystem.draw_lstring(lstring, **params)  
         return {'FINISHED'}
 
 def leaf_shape(t):
