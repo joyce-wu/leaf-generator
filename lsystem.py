@@ -24,7 +24,7 @@ import random
 
 SCENE_SIZE = 100
 class TreeProperties(bpy.types.PropertyGroup):
-    leaf_types = [('1', 'Ovate', 'Ovate'), ('2', 'Linear', 'Linear'), ('3', 'Cordate', 'Cordate'), ('4', 'Maple', 'Maple'), ('5', 'Palmate', 'Palmate'), ('6', 'Spiky Oak', 'Spiky Oak'), ('7', 'Rounded Oak', 'Rounded Oak'), ('8', 'Elliptic', 'Elliptic'), ('9', 'Rectangle', 'Rectangle'), ('10', 'Triangle', 'Triangle')]
+    leaf_types = [('1', 'Petal', 'Petal'), ('2', 'Ovate', 'Ovate'), ('3', 'Linear', 'Linear'), ('4', 'Cordate', 'Cordate'), ('5', 'Maple', 'Maple'), ('6', 'Palmate', 'Palmate'), ('7', 'Spiky Oak', 'Spiky Oak'), ('8', 'Rounded Oak', 'Rounded Oak'), ('9', 'Elliptic', 'Elliptic'), ('9', 'Rectangle', 'Rectangle'), ('10', 'Triangle', 'Triangle')]
     
     leaf_type : bpy.props.EnumProperty(name="Type", items=leaf_types)
     leaf_bend : bpy.props.FloatProperty(name="Bend", default=90, min=0, max=360)
@@ -172,6 +172,9 @@ class Branch(bpy.types.Operator):
             bmesh.ops.translate(bm, vec=extrude_vec, verts=r['faces'][0].verts)
         bm.to_mesh(obj.data)
         obj.data.update()
+        halfway_point = (end + pos) / 2.0 
+        Leaf.gen_leaf(1, 1, halfway_point, (-1, -1, random.choice((-1, 1))), 40)
+        
 
 class Leaf(bpy.types.Operator):
     bl_idname = "object.leaf_gen"
@@ -352,6 +355,18 @@ class Field:
 
 def leaf_shape(t):
     return [
+        (
+            [
+                Vector([0.1, 0, 0]),
+                Vector([0.25, 0, 0.3]),
+                Vector([0.1, 0, 0.4]),
+                Vector([0, 0, 0.3]),
+                Vector([-0.1, 0, 0.4]),
+                Vector([-0.25, 0, 0.3]),
+                Vector([-0.1, 0, 0]),
+            ],
+            [[0, 1, 2, 3, 4, 5]],
+        ),
         (  # 1 = ovate
             [
                 Vector([0.005, 0, 0]),
@@ -968,7 +983,7 @@ class TreeGen(bpy.types.Operator):
     
     def execute(self, context):
         print("Growing grass....")
-        Field.draw()
+#        Field.draw()
         
         print("Planting flowers.....")
         
