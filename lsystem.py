@@ -30,7 +30,7 @@ class TreeProperties(bpy.types.PropertyGroup):
     leaf_bend : bpy.props.FloatProperty(name="Bend", default=90, min=0, max=360)
     leaf_scale : bpy.props.FloatProperty(name="Scale", default=0.8)
     leaf_branch_angle : bpy.props.IntProperty(name="Leaf Branch Angle", default=41)
-    branch_length : bpy.props.FloatProperty(name="Length", default=1.0, min=0.01)
+    branch_length : bpy.props.FloatProperty(name="Length", default=1.1, min=0.01)
     branch_length_scale : bpy.props.FloatProperty(name="Length Scale", default=1.1)
     branch_thickness : bpy.props.FloatProperty(name="Thickness", default=0.1)
     branch_angle : bpy.props.FloatProperty(name="Angle", default=35, min=0, max=360)
@@ -44,6 +44,7 @@ class TreeProperties(bpy.types.PropertyGroup):
     bee_homing_probability : bpy.props.FloatProperty(name="Homing Probability", default=0.05, min=0, max=1)
     bee_exploring_probability : bpy.props.FloatProperty(name="Exploring Probability", default=0.10, min=0, max=1)
     bee_seed : bpy.props.IntProperty(name="Seed", default=123456)
+    flower_count : bpy.props.IntProperty(name="Count", default=100)
         
 class LNode:
     def __init__(self, l, *params):
@@ -605,8 +606,9 @@ class TreePanel(bpy.types.Panel):
         mytool = scene.my_tool
         
         row = layout.row()
-        row.label(text="Tree Parameters")
+        row.label(text="Leaf Parameters")
         box = layout.box()
+        box.prop(mytool, "flower_count")
         box.prop(mytool, "n_iter")
         row = box.row()
         row.prop(mytool, "tropism")
@@ -614,7 +616,7 @@ class TreePanel(bpy.types.Panel):
         box.prop(mytool, "seed")
         
         row = layout.row()
-        row.label(text="Leaf Parameters:")
+        row.label(text="Petal Parameters:")
         box = layout.box()
         box.prop(mytool, "leaf_type")
         box.prop(mytool, "leaf_bend")
@@ -1005,7 +1007,7 @@ class TreeGen(bpy.types.Operator):
         
         random.seed(params['seed'])
         flower_locations = []
-        for num_flowers in range(100):
+        for num_flowers in range(mytool.flower_count):
             pos = Vector([random.randrange(-SCENE_SIZE/2, SCENE_SIZE/2), random.randrange(-SCENE_SIZE/2, SCENE_SIZE/2), 0])
             LSystem.draw_lstring(lstring, pos, **params) 
             flower_locations.append(pos)
