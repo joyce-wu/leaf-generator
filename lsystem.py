@@ -888,7 +888,7 @@ def create_boids(params):
         
         # state transitions
         for boid in boids:
-            if boid.state is Boid.STATE_FLOCKING and random.random() < .05:
+            if boid.state is Boid.STATE_FLOCKING and random.random() < params['homing_probability']:
                 # print("Boid {} is now seeking".format(boid.name))
                 # make it go to a beehive
                 boid.state = Boid.STATE_SEEKING
@@ -897,7 +897,7 @@ def create_boids(params):
                 new_v.normalize()
                 boid.v = new_v * boid.v.length
                 boid.seeking_dest = dest
-            elif boid.state is Boid.STATE_WAITING and random.random() < 0.10:
+            elif boid.state is Boid.STATE_WAITING and random.random() < params['exploring_probability']:
                 # print("Boid {} is now flocking".format(boid.name))
                 boid.state = Boid.STATE_FLOCKING
                 boid.seeking_dest = None
@@ -990,6 +990,8 @@ class TreeGen(bpy.types.Operator):
             'avoid_collisions' : 1.0,
             'match_velocity' : 1.0,
             'stay_in_territory' : 1.0,
+            'homing_probability' : 0.05,   # how often will bees decide to go home (0 to 1)
+            'exploring_probability' : 0.10, # how often will bees at home decide to leave (0 to 1)
             'seed' : 123456,            # Random seed
 
             # dont paramaterize these
