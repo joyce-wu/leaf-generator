@@ -1,5 +1,5 @@
 import bpy
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Euler
 from math import *
 import random
 
@@ -36,6 +36,7 @@ class Boid:
         self.p += self.v
         self.p.z = max(self.p.z, 0)
         self.history.append( (self.p.copy(), self.v.copy()) )
+        
 
     def draw(self):
         # draw boid
@@ -55,6 +56,35 @@ class Boid:
 
         obj = bpy.context.object
         obj.rotation_mode = 'QUATERNION'
+        
+        # add wings
+        right_wing = gen_right_wing()
+        right_verts = right_wing[0]
+        right_faces = right_wing[1]
+        mesh = bpy.data.meshes.new(name="Wing")
+        mesh.from_pydata(right_verts, [], right_faces) 
+        rwing_obj = bpy.data.objects.new(self.name+"_RWing", mesh)
+        bpy.context.scene.collection.objects.link(rwing_obj)
+        bpy.context.view_layer.objects.active = rwing_obj
+        rwing_obj.parent = obj
+        rwing_obj.location = Vector((0.0, -0.34154030680656433, 0.31113627552986145))
+        rwing_obj.scale = Vector((3, 1, 3))
+        rwing_obj.rotation_euler = Euler((-0.46983131766319275, -0.0, 0.0), 'XYZ')
+        rwing_obj.rotation_mode = "ZXY"
+        
+        left_wing = gen_left_wing()
+        left_verts = left_wing[0]
+        left_faces = left_wing[1]
+        mesh = bpy.data.meshes.new(name="Wing")
+        mesh.from_pydata(left_verts, [], left_faces) 
+        lwing_obj = bpy.data.objects.new(self.name+"_LWing", mesh)
+        bpy.context.scene.collection.objects.link(lwing_obj)
+        bpy.context.view_layer.objects.active = lwing_obj
+        lwing_obj.parent = obj
+        lwing_obj.location = Vector((0.0, -0.34154030680656433, 0.31113627552986145))
+        lwing_obj.scale = Vector((3, 1, 3))
+        lwing_obj.rotation_euler = Euler((-0.46983131766319275, -0.0, 0.0), 'XYZ')
+        lwing_obj.rotation_mode = "ZXY"
 
         for i, (p, v) in enumerate(self.history):
             t = i * params['animation_step']
@@ -77,12 +107,31 @@ class Boid:
             mat = Matrix([h, l, u])
             mat.transpose()
             
-            base_mat = Matrix([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
+            base_mat = Matrix.Rotation(pi/2, 4, "Y") @ Matrix.Rotation(-pi/2, 4, "Z")
+            base_mat = base_mat.to_3x3()
             mat = mat @ base_mat
-
+            
             quat = mat.to_quaternion()
             obj.rotation_quaternion = quat
             obj.keyframe_insert(data_path="rotation_quaternion", frame=t)
+        
+        
+        # animate wings
+        z_rotation = 0
+        rotation_step = 1.5
+        direction = 1
+        for t in range(0, params['animation_length'], 5):
+            
+            if (z_rotation >= 0):
+                direction = -1
+            elif (z_rotation <= -1.25):
+                direction = 1
+        
+            z_rotation += (rotation_step * direction)
+            rwing_obj.rotation_euler.z = z_rotation
+            lwing_obj.rotation_euler.z = -z_rotation
+            lwing_obj.keyframe_insert(data_path="rotation_euler", frame=t)
+            rwing_obj.keyframe_insert(data_path="rotation_euler", frame=t)
 
 def boids_init():
     boids = []
@@ -225,57 +274,7 @@ def gen_left_wing():
 
 def execute():
     random.seed(params['seed'])
-    
-    right_wing = gen_right_wing()
-    right_verts = right_wing[0]
-    right_faces = right_wing[1]
-    mesh = bpy.data.meshes.new(name="Wing")
-    mesh.from_pydata(right_verts, [], right_faces) 
-    rwing_obj = bpy.data.objects.new("Wing", mesh)
-    bpy.context.scene.collection.objects.link(rwing_obj)
-    bpy.context.view_layer.objects.active = rwing_obj
-    
-    left_wing = gen_left_wing()
-    left_verts = left_wing[0]
-    left_faces = left_wing[1]
-    mesh = bpy.data.meshes.new(name="Wing")
-    mesh.from_pydata(left_verts, [], left_faces) 
-    lwing_obj = bpy.data.objects.new("Wing", mesh)
-    bpy.context.scene.collection.objects.link(lwing_obj)
-    bpy.context.view_layer.objects.active = lwing_obj
-    lwing_obj.select_get()
-    
-    
-    '''
-    radius = 5
-    z_rotation = 0
-    rotation_step = 1.25
-    direction = 1
-    boid = Boid("boid_test", p=Vector([radius,0,0]), v=Vector([0,radius,0]))
-    
-    for i in range(0, params['animation_length'], params['animation_step']):
-        rad = i * params['animation_step'] / params['animation_length'] * 2 * pi
-        boid.v = radius * Vector([-1 * sin(rad), cos(rad), 0])
-        boid.save_frame()
-        
-        total_steps = params['animation_length'] / params['animation_step']
-        
-        if (z_rotation >= 1.25):
-            direction = -1
-        elif (z_rotation <= -1.25):
-            direction = 1
-        
-        z_rotation += (rotation_step * direction)
-        rwing_obj.rotation_euler = (0, 0, z_rotation)
-        lwing_obj.rotation_euler = (0, 0, -z_rotation) 
-        t = i * params['animation_step'] / 8
-        lwing_obj.keyframe_insert(data_path="rotation_euler", frame=t)
-        rwing_obj.keyframe_insert(data_path="rotation_euler", frame=t)
-        
-
-    boid.draw()
-    '''
-    
+         
     boids = boids_init()
 
     for i in range(0, params['animation_length'], params['animation_step']):
@@ -290,6 +289,6 @@ def execute():
     
     for boid in boids:
         boid.draw()
-        
+    
     
 execute()
