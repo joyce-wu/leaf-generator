@@ -38,6 +38,12 @@ class TreeProperties(bpy.types.PropertyGroup):
     tropism : bpy.props.FloatVectorProperty(name="Tropism", default=(0, 0, -1), size=3)
     tropism_scale : bpy.props.FloatProperty(name="Tropism Scale", default=0.22)
     seed : bpy.props.IntProperty(name="Seed", default=6)
+    bee_count : bpy.props.IntProperty(name="Count", default=50)
+    bee_visual_range : bpy.props.FloatProperty(name="Visual Range", default=7.5)
+    bee_collision_radius : bpy.props.FloatProperty(name="Collision Radius", default=2.0)
+    bee_homing_probability : bpy.props.FloatProperty(name="Homing Probability", default=0.05, min=0, max=1)
+    bee_exploring_probability : bpy.props.FloatProperty(name="Exploring Probability", default=0.10, min=0, max=1)
+    bee_seed : bpy.props.IntProperty(name="Seed", default=123456)
         
 class LNode:
     def __init__(self, l, *params):
@@ -285,6 +291,13 @@ class Turtle:
         ] = self.stack.pop()    
         
 class Field:
+    def beehive(pos):
+        bpy.ops.mesh.primitive_plane_add(size=8, location=pos)
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.mesh.extrude_context_move(MESH_OT_extrude_context={"use_normal_flip":False, "use_dissolve_ortho_edges":False, "mirror":False}, TRANSFORM_OT_translate={"value":(0, 0, 5.93554), "orient_type":'NORMAL', "orient_matrix":((0, -1, 0), (1, 0, -0), (0, 0, 1)), "orient_matrix_type":'NORMAL', "constraint_axis":(False, False, True), "mirror":False, "use_proportional_edit":False, "proportional_edit_falloff":'SMOOTH', "proportional_size":1, "use_proportional_connected":False, "use_proportional_projected":False, "snap":False, "snap_target":'CLOSEST', "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0), "gpencil_strokes":False, "cursor_transform":False, "texture_space":False, "remove_on_cancel":False, "release_confirm":True, "use_accurate":False, "use_automerge_and_split":False})
+        bpy.ops.mesh.bevel(offset=0.5, offset_pct=0, release_confirm=True)
+        bpy.ops.object.editmode_toggle()
+        
     def draw():
         mesh = bpy.data.meshes.new(name="Grass Blade")
         shape = leaf_shape(0)
@@ -328,6 +341,13 @@ class Field:
         ps.use_rotations = True
         ps.rotation_factor_random = 0.2
         ps.rotation_mode = 'GLOB_Y'
+        
+        x = SCENE_SIZE / 2 - 4
+        Field.beehive(Vector([x, x, 0]))
+        Field.beehive(Vector([x, -x, 0]))
+        Field.beehive(Vector([-x, x, 0]))
+        Field.beehive(Vector([-x, -x, 0]))
+        Field.beehive(Vector([0, 0, 0]))
 
 def leaf_shape(t):
     return [
@@ -608,6 +628,16 @@ class TreePanel(bpy.types.Panel):
         box.prop(mytool, "branch_length_scale")
         box.prop(mytool, "branch_thickness")
         box.prop(mytool, "branch_angle")
+
+        row = layout.row()
+        row.label(text="Bee Parameters")
+        box = layout.box()
+        box.prop(mytool, "bee_count")
+        box.prop(mytool, "bee_visual_range")
+        box.prop(mytool, "bee_collision_radius")
+        box.prop(mytool, "bee_homing_probability")
+        box.prop(mytool, "bee_exploring_probability")
+        box.prop(mytool, "bee_seed")
         
         layout.operator(TreeGen.bl_idname)
 
@@ -931,7 +961,7 @@ def create_boids(params):
 class TreeGen(bpy.types.Operator):
     bl_idname = "object.tree_gen"
     bl_category = "Tree Generator"
-    bl_label = "Generate Tree"
+    bl_label = "Generate Field"
     bl_options = {'REGISTER'}
     
     def execute(self, context):
@@ -982,17 +1012,16 @@ class TreeGen(bpy.types.Operator):
             
         print("Hatching bees...")
         boid_params = {
-            # paramaterize these
-            'count' : 50,               # number of boids
-            'visual_range' : 7.5,       # radius of vision for each boid
-            'collision_radius' : 2.0,   # collision radius
+            'count' : mytool.bee_count,               # number of boids
+            'visual_range' : mytool.bee_visual_range,       # radius of vision for each boid
+            'collision_radius' : mytool.bee_collision_radius,   # collision radius
             'fly_towards_center' : 1.0, # weights for boid behavior rules
             'avoid_collisions' : 1.0,
             'match_velocity' : 1.0,
             'stay_in_territory' : 1.0,
-            'homing_probability' : 0.05,   # how often will bees decide to go home (0 to 1)
-            'exploring_probability' : 0.10, # how often will bees at home decide to leave (0 to 1)
-            'seed' : 123456,            # Random seed
+            'homing_probability' : mytool.bee_homing_probability,   # how often will bees decide to go home (0 to 1)
+            'exploring_probability' : mytool.bee_exploring_probability, # how often will bees at home decide to leave (0 to 1)
+            'seed' : mytool.bee_seed,            # Random seed
 
             # dont paramaterize these
             'animation_step' : 5,
