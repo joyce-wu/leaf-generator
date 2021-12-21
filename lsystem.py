@@ -7,9 +7,9 @@ The Algorithmic Beauty of Plants, ch 1-2
 
 '''
 bl_info = {
-    "name": "Tree Generator",
+    "name": "Beehive Scene Generator",
     "category": "Object",
-    "description": "Generate trees with leaf and branch variation",
+    "description": "Generate an interactive swarm of bees in a scene with flowers and grass",
     "author": "Lance Tan and Joyce Wu",
     "version": (1, 0),
     'blender': (2, 80, 0),
@@ -43,6 +43,10 @@ class TreeProperties(bpy.types.PropertyGroup):
     bee_collision_radius : bpy.props.FloatProperty(name="Collision Radius", default=2.0)
     bee_homing_probability : bpy.props.FloatProperty(name="Homing Probability", default=0.05, min=0, max=1)
     bee_exploring_probability : bpy.props.FloatProperty(name="Exploring Probability", default=0.10, min=0, max=1)
+    bee_fly_towards_center : bpy.props.FloatProperty(name="Fly Towards Center (Weight)", default=1.0, min=0, max=2.0)
+    bee_avoid_collisions : bpy.props.FloatProperty(name="Avoid Collisions (Weight)", default=1.0, min=0, max=2.0)
+    bee_match_velocity : bpy.props.FloatProperty(name="Match Velocity (Weight)", default=1.0, min=0, max=2.0)
+    bee_stay_in_territory: bpy.props.FloatProperty(name="Stay In Territory (Weight)", default=1.0, min=0, max=2.0)
     bee_seed : bpy.props.IntProperty(name="Seed", default=123456)
     flower_count : bpy.props.IntProperty(name="Count", default=100)
         
@@ -594,11 +598,11 @@ def leaf_shape(t):
 
 
 class TreePanel(bpy.types.Panel):
-    bl_label = "Tree Generator"
+    bl_label = "Bee Swarm Scene Generator"
     bl_idname = "OBJECT_PT_Tree"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "Tree Generator"
+    bl_category = "Bee Swarm Scene Generator"
     
     def draw(self, context):
         layout = self.layout
@@ -639,6 +643,10 @@ class TreePanel(bpy.types.Panel):
         box.prop(mytool, "bee_collision_radius")
         box.prop(mytool, "bee_homing_probability")
         box.prop(mytool, "bee_exploring_probability")
+        box.prop(mytool, "bee_fly_towards_center")
+        box.prop(mytool, "bee_avoid_collisions")
+        box.prop(mytool, "bee_match_velocity")
+        box.prop(mytool, "bee_stay_in_territory")
         box.prop(mytool, "bee_seed")
         
         layout.operator(TreeGen.bl_idname)
@@ -662,16 +670,14 @@ class Boid:
         self.history.append( (self.state, self.p.copy(), self.v.copy()) )        
 
     def draw(self, params):
-        # draw boid
-        bpy.ops.mesh.primitive_cone_add(
-            radius1=1,
-            radius2=0,
-            depth=2,
-            enter_editmode=False,
+        # draw boid        
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            enter_editmode=False, 
             align='WORLD',
-            location=(0, 0, 0), 
-            scale=(1, 1, 1)
+            location=(0, 0, 0),
+            scale=(0.75, 0.75, 1)
         )
+
         bpy.context.object.name = self.name
         bpy.context.object.data.name = self.name
         # bpy.ops.object.shade_smooth()
@@ -690,9 +696,9 @@ class Boid:
         bpy.context.scene.collection.objects.link(rwing_obj)
         bpy.context.view_layer.objects.active = rwing_obj
         rwing_obj.parent = obj
-        rwing_obj.location = Vector((0.0, -0.34154030680656433, 0.31113627552986145))
+        rwing_obj.location = Vector((0.0, -0.75, 0.46))
         rwing_obj.scale = Vector((3, 1, 3))
-        rwing_obj.rotation_euler = Euler((-0.46983131766319275, -0.0, 0.0), 'XYZ')
+        rwing_obj.rotation_euler = Euler((0.0, -0.0, 0.0), 'XYZ')
         rwing_obj.rotation_mode = "ZXY"
         
         left_wing = gen_left_wing()
@@ -704,9 +710,9 @@ class Boid:
         bpy.context.scene.collection.objects.link(lwing_obj)
         bpy.context.view_layer.objects.active = lwing_obj
         lwing_obj.parent = obj
-        lwing_obj.location = Vector((0.0, -0.34154030680656433, 0.31113627552986145))
+        lwing_obj.location = Vector((0.0, -0.75, 0.46))
         lwing_obj.scale = Vector((3, 1, 3))
-        lwing_obj.rotation_euler = Euler((-0.46983131766319275, -0.0, 0.0), 'XYZ')
+        lwing_obj.rotation_euler = Euler((0.0, -0.0, 0.0), 'XYZ')
         lwing_obj.rotation_mode = "ZXY"
 
         for i, (state, p, v) in enumerate(self.history):
@@ -900,12 +906,13 @@ def gen_left_wing():
     )
 
 def create_boids(params):
-    x = SCENE_SIZE/2 - 10
+    x = SCENE_SIZE / 2 - 4
     beehive_pos = [
         Vector((x, x, 0)),
         Vector((x, -x, 0)),
         Vector((-x, x, 0)),
-        Vector((-x, -x, 0))
+        Vector((-x, -x, 0)),
+        Vector((0,0,0))
     ]
          
     boids = boids_init(params)
@@ -962,11 +969,11 @@ def create_boids(params):
     
 class TreeGen(bpy.types.Operator):
     bl_idname = "object.tree_gen"
-    bl_category = "Tree Generator"
+    bl_category = "Bee Swarm Scene Generator"
     bl_label = "Generate Field"
     bl_options = {'REGISTER'}
     
-    def execute(self, context):
+    def execute(self, context):        
         print("Growing grass....")
         Field.draw()
         
@@ -1017,10 +1024,10 @@ class TreeGen(bpy.types.Operator):
             'count' : mytool.bee_count,               # number of boids
             'visual_range' : mytool.bee_visual_range,       # radius of vision for each boid
             'collision_radius' : mytool.bee_collision_radius,   # collision radius
-            'fly_towards_center' : 1.0, # weights for boid behavior rules
-            'avoid_collisions' : 1.0,
-            'match_velocity' : 1.0,
-            'stay_in_territory' : 1.0,
+            'fly_towards_center' : mytool.bee_fly_towards_center, # weights for boid behavior rules
+            'avoid_collisions' : mytool.bee_avoid_collisions,
+            'match_velocity' : mytool.bee_match_velocity,
+            'stay_in_territory' : mytool.bee_stay_in_territory,
             'homing_probability' : mytool.bee_homing_probability,   # how often will bees decide to go home (0 to 1)
             'exploring_probability' : mytool.bee_exploring_probability, # how often will bees at home decide to leave (0 to 1)
             'seed' : mytool.bee_seed,            # Random seed
@@ -1032,6 +1039,8 @@ class TreeGen(bpy.types.Operator):
             'territory_center' : Vector([0,0,10]),
             'territory_radius' : 40,
         }
+#        test_boid = Boid("test_boid", Vector((0,0,0)), Vector((1,0,0)))
+#        test_boid.draw(boid_params)
         
         create_boids(params=boid_params)
         
